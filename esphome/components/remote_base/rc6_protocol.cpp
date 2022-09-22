@@ -71,8 +71,37 @@ void RC6Protocol::encode(RemoteTransmitData *dst, const RC6Data &data) {
     }
   }
 
+  uint16_t raw;
+
   // Encode data
-  uint16_t raw{static_cast<uint16_t>((data.address << 8) | data.command)};
+  if(data.mode == 6) {
+    raw = {static_cast<uint16_t>((data.oem1 << 8) | data.oem2)};
+      for (uint16_t mask = 0x8000; mask; mask >>= 1) {
+        if (raw & mask) {
+          if (next < 0) {
+            dst->space(-next);
+            next = 0;
+          }
+          if (next >= 0) {
+            next = next + RC6_UNIT;
+            dst->mark(next);
+            next = -RC6_UNIT;
+          }
+        } else {
+          if (next > 0) {
+            dst->mark(next);
+            next = 0;
+          }
+          if (next <= 0) {
+            next = next - RC6_UNIT;
+            dst->space(-next);
+            next = RC6_UNIT;
+          }
+        }
+    }
+  }
+
+  raw = {static_cast<uint16_t>((data.address << 8) | data.command)};
 
   for (uint16_t mask = 0x8000; mask; mask >>= 1) {
     if (raw & mask) {
@@ -111,6 +140,8 @@ optional<RC6Data> RC6Protocol::decode(RemoteReceiveData src) {
       .toggle = 0,
       .address = 0,
       .command = 0,
+      .oem1 = 0,
+      .oem2 = 0
   };
 
   // Check if header matches
@@ -140,7 +171,7 @@ optional<RC6Data> RC6Protocol::decode(RemoteReceiveData src) {
 
   data.mode = header & RC6_MODE_MASK;
 
-  if (data.mode != 0) {
+  if (data.mode != 0 && data.mode != 6) {
     return {};  // I dont have a device to test other modes
   }
 
@@ -151,14 +182,18 @@ optional<RC6Data> RC6Protocol::decode(RemoteReceiveData src) {
     src.advance();
   }
 
+  uint8_t length = 16;
+  if(data.mode == 6) {
+    length = 32;
+  }
   // Data
   offset = 0;
-  while (offset < 16) {
+  while (offset < length) {
     bit = src.peek() > 0;
-    buffer = buffer + (bit << (15 - offset++));
+    buffer = buffer + (bit << ((length - 1) - offset++));
     src.advance();
 
-    if (offset == 16) {
+    if (offset == length) {
       break;
     } else if (src.peek_mark(RC6_UNIT) || src.peek_space(RC6_UNIT)) {
       src.advance();
@@ -167,14 +202,27 @@ optional<RC6Data> RC6Protocol::decode(RemoteReceiveData src) {
     }
   }
 
-  data.address = (0xFF00 & buffer) >> 8;
-  data.command = (0x00FF & buffer);
+  if(data.mode == 6) {
+    data.oem1 = (0xFF000000 & buffer) >> 24;
+    data.oem2 = (0x00FF0000 & buffer) >> 16;
+    data.address = (0x0000FF00 & buffer) >> 8;
+    data.command = (0x000000FF & buffer);
+  } else {
+    data.address = (0xFF00 & buffer) >> 8;
+    data.command = (0x00FF & buffer);
+  }
+
   return data;
 }
 
 void RC6Protocol::dump(const RC6Data &data) {
-  ESP_LOGI(RC6_TAG, "Received RC6: mode=0x%X, address=0x%02X, command=0x%02X, toggle=0x%X", data.mode, data.address,
-           data.command, data.toggle);
+  if(data.mode == 6) {
+   ESP_LOGI(RC6_TAG, "Received RC6: mode=0x%X, oem1=0x%02X, oem2=0x%02X, address=0x%02X, command=0x%02X, toggle=0x%X",
+      data.mode, data.oem1, data.oem2,data.address, data.command, data.toggle);
+  } else {
+    ESP_LOGI(RC6_TAG, "Received RC6: mode=0x%X, address=0x%02X, command=0x%02X, toggle=0x%X",
+      data.mode, data.address, data.command, data.toggle);
+   }
 }
 
 }  // namespace remote_base

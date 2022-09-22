@@ -10,7 +10,8 @@ struct RC6Data {
   uint8_t toggle : 1;
   uint8_t address;
   uint8_t command;
-
+  uint8_t oem1;
+  uint8_t oem2;
   bool operator==(const RC6Data &rhs) const { return address == rhs.address && command == rhs.command; }
 };
 

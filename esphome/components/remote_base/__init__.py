@@ -31,6 +31,9 @@ from esphome.const import (
     CONF_MAGNITUDE,
     CONF_WAND_ID,
     CONF_LEVEL,
+    CONF_MODE,
+    CONF_OEM1,
+    CONF_OEM2,
 )
 from esphome.core import coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -956,6 +959,9 @@ async def rc5_action(var, config, args):
 RC6Data, RC6BinarySensor, RC6Trigger, RC6Action, RC6Dumper = declare_protocol("RC6")
 RC6_SCHEMA = cv.Schema(
     {
+        cv.Optional(CONF_MODE): cv.hex_uint8_t,
+        cv.Optional(CONF_OEM1): cv.hex_uint8_t,
+        cv.Optional(CONF_OEM2): cv.hex_uint8_t,
         cv.Required(CONF_ADDRESS): cv.hex_uint8_t,
         cv.Required(CONF_COMMAND): cv.hex_uint8_t,
     }
@@ -970,6 +976,8 @@ def rc6_binary_sensor(var, config):
                 RC6Data,
                 ("mode", 0),
                 ("toggle", 0),
+                ("oem1", config[CONF_OEM1]),
+                ("oem2", config[CONF_OEM2]),
                 ("address", config[CONF_ADDRESS]),
                 ("command", config[CONF_COMMAND]),
             )
