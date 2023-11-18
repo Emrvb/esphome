@@ -959,9 +959,9 @@ async def rc5_action(var, config, args):
 RC6Data, RC6BinarySensor, RC6Trigger, RC6Action, RC6Dumper = declare_protocol("RC6")
 RC6_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_MODE): cv.hex_uint8_t,
-        cv.Optional(CONF_OEM1): cv.hex_uint8_t,
-        cv.Optional(CONF_OEM2): cv.hex_uint8_t,
+        cv.Optional(CONF_MODE, default=0): cv.hex_uint8_t,
+        cv.Optional(CONF_OEM1, default=0): cv.hex_uint8_t,
+        cv.Optional(CONF_OEM2, default=0): cv.hex_uint8_t,
         cv.Required(CONF_ADDRESS): cv.hex_uint8_t,
         cv.Required(CONF_COMMAND): cv.hex_uint8_t,
     }
@@ -974,7 +974,7 @@ def rc6_binary_sensor(var, config):
         var.set_data(
             cg.StructInitializer(
                 RC6Data,
-                ("mode", 0),
+                ("mode", config[CONF_MODE]),
                 ("toggle", 0),
                 ("oem1", config[CONF_OEM1]),
                 ("oem2", config[CONF_OEM2]),
@@ -997,6 +997,12 @@ def rc6_dumper(var, config):
 
 @register_action("rc6", RC6Action, RC6_SCHEMA)
 async def rc6_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_MODE], args, cg.uint8)
+    cg.add(var.set_mode(template_))
+    template_ = await cg.templatable(config[CONF_OEM1], args, cg.uint8)
+    cg.add(var.set_oem1(template_))
+    template_ = await cg.templatable(config[CONF_OEM2], args, cg.uint8)
+    cg.add(var.set_oem2(template_))
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)

@@ -152,7 +152,7 @@ optional<RC6Data> RC6Protocol::decode(RemoteReceiveData src) {
   uint8_t bit{1};
   uint8_t offset{0};
   uint8_t header{0};
-  uint32_t buffer{0};
+  uint16_t buffer{0};
 
   // Startbit + mode
   while (offset < 4) {
@@ -182,18 +182,14 @@ optional<RC6Data> RC6Protocol::decode(RemoteReceiveData src) {
     src.advance();
   }
 
-  uint8_t length = 16;
-  if(data.mode == 6) {
-    length = 32;
-  }
   // Data
   offset = 0;
-  while (offset < length) {
+  while (offset < 16) {
     bit = src.peek() > 0;
-    buffer = buffer + (bit << ((length - 1) - offset++));
+    buffer = buffer + (bit << (16 - ++offset));
     src.advance();
 
-    if (offset == length) {
+    if (offset == 16) {
       break;
     } else if (src.peek_mark(RC6_UNIT) || src.peek_space(RC6_UNIT)) {
       src.advance();
@@ -203,10 +199,27 @@ optional<RC6Data> RC6Protocol::decode(RemoteReceiveData src) {
   }
 
   if(data.mode == 6) {
-    data.oem1 = (0xFF000000 & buffer) >> 24;
-    data.oem2 = (0x00FF0000 & buffer) >> 16;
-    data.address = (0x0000FF00 & buffer) >> 8;
-    data.command = (0x000000FF & buffer);
+    data.oem1 = (0xFF00 & buffer) >> 8;
+    data.oem2 = (0x00FF & buffer);
+
+    // Data
+    buffer = 0;
+    offset = 0;
+    while (offset < 16) {
+      bit = src.peek() > 0;
+      buffer = buffer + (bit << (16 - ++offset));
+      src.advance();
+
+      if (offset == 16) {
+        break;
+      } else if (src.peek_mark(RC6_UNIT) || src.peek_space(RC6_UNIT)) {
+        src.advance();
+      } else if (!src.peek_mark(RC6_UNIT * 2) && !src.peek_space(RC6_UNIT * 2)) {
+        return {};
+      }
+    }
+    data.address = (0xFF00 & buffer) >> 8;
+    data.command = (0x00FF & buffer);
   } else {
     data.address = (0xFF00 & buffer) >> 8;
     data.command = (0x00FF & buffer);
@@ -217,12 +230,12 @@ optional<RC6Data> RC6Protocol::decode(RemoteReceiveData src) {
 
 void RC6Protocol::dump(const RC6Data &data) {
   if(data.mode == 6) {
-   ESP_LOGI(RC6_TAG, "Received RC6: mode=0x%X, oem1=0x%02X, oem2=0x%02X, address=0x%02X, command=0x%02X, toggle=0x%X",
+    ESP_LOGI(RC6_TAG, "Received RC6: mode=0x%X, oem1=0x%02X, oem2=0x%02X, address=0x%02X, command=0x%02X, toggle=0x%X",
       data.mode, data.oem1, data.oem2,data.address, data.command, data.toggle);
   } else {
     ESP_LOGI(RC6_TAG, "Received RC6: mode=0x%X, address=0x%02X, command=0x%02X, toggle=0x%X",
       data.mode, data.address, data.command, data.toggle);
-   }
+  }
 }
 
 }  // namespace remote_base
